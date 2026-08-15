@@ -11,6 +11,6 @@ def db_file(tmp_path, monkeypatch):
     monkeypatch.setattr(
         sidecar_app,
         "_last_good",
-        {"state": "idle", "detail": "Chua doc duoc du lieu"},
+        {"state": "offline", "detail": "Chua doc duoc du lieu"},
     )
     return path
