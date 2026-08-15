@@ -43,7 +43,7 @@ def test_api_status_returns_last_good_when_db_json_is_malformed(db_file):
 
 
 def test_api_status_returns_last_good_when_db_is_unavailable(db_file):
-    db_file.unlink()
+    db_file.unlink(missing_ok=True)
     sidecar_app._last_good = {
         "state": "warning",
         "detail": "cached warning",
