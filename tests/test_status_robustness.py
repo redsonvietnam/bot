@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from overlay.router_bot_overlay import _parse_status_payload
+from overlay import router_bot_overlay as overlay
 from sidecar import app as sidecar_app
 from tests.helpers import make_connections, write_db
 
@@ -87,7 +87,7 @@ def test_valid_db_recovers_after_initial_failure(db_file):
 
 
 def test_overlay_accepts_known_state_payload():
-    assert _parse_status_payload({"state": "warning", "detail": "12/23"}) == (
+    assert overlay._parse_status_payload({"state": "warning", "detail": "12/23"}) == (
         "warning",
         "12/23",
     )
@@ -102,4 +102,32 @@ def test_overlay_accepts_known_state_payload():
 ])
 def test_overlay_rejects_invalid_status_payload(payload):
     with pytest.raises(ValueError):
-        _parse_status_payload(payload)
+        overlay._parse_status_payload(payload)
+
+
+class FakeResponse:
+    def __init__(self, payload=None, error=None):
+        self.payload = payload
+        self.error = error
+
+    def raise_for_status(self):
+        if self.error:
+            raise self.error
+
+    def json(self):
+        return self.payload
+
+
+def test_overlay_fetch_rejects_http_error(monkeypatch):
+    response = FakeResponse(error=overlay.requests.HTTPError("500"))
+    monkeypatch.setattr(overlay.requests, "get", lambda *args, **kwargs: response)
+
+    with pytest.raises(overlay.requests.HTTPError):
+        overlay._fetch_status()
+
+
+def test_overlay_fetch_accepts_valid_response(monkeypatch):
+    response = FakeResponse(payload={"state": "idle", "detail": "ok"})
+    monkeypatch.setattr(overlay.requests, "get", lambda *args, **kwargs: response)
+
+    assert overlay._fetch_status() == ("idle", "ok")
