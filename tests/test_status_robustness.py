@@ -181,3 +181,30 @@ def test_overlay_poll_status_sets_offline_on_invalid_response(monkeypatch, polli
     assert polling_bot.detail == "Phản hồi status không hợp lệ"
     assert polling_bot.tooltip == "OFFLINE — Phản hồi status không hợp lệ"
     assert polling_bot.updated is True
+
+
+@pytest.mark.parametrize(
+    ("from_state", "to_state", "detail"),
+    [
+        ("idle", "active", "active detail"),
+        ("active", "warning", "warning detail"),
+        ("warning", "blocked", "blocked detail"),
+        ("blocked", "offline", "offline detail"),
+        ("offline", "idle", "idle detail"),
+        ("offline", "active", "active detail"),
+    ],
+)
+def test_overlay_poll_status_transitions_state(monkeypatch, polling_bot, from_state, to_state, detail):
+    polling_bot.state = from_state
+    polling_bot.detail = f"{from_state} detail"
+    polling_bot.tooltip = f"{from_state.upper()} — {polling_bot.detail}"
+    polling_bot.updated = False
+
+    monkeypatch.setattr(overlay, "_fetch_status", lambda: (to_state, detail))
+
+    overlay.RouterBot.poll_status(polling_bot)
+
+    assert polling_bot.state == to_state
+    assert polling_bot.detail == detail
+    assert polling_bot.tooltip == f"{to_state.upper()} — {detail}"
+    assert polling_bot.updated is True
