@@ -1,15 +1,11 @@
-"""Restore db.json ve trang thai goc (idle) va xoa file backup."""
-import os
-import shutil
+from sidecar import app as sidecar_app
+from tests.helpers import make_connections, write_db
 
-db_path = os.path.join(os.environ.get("APPDATA", ""), "9router", "db.json")
-backup_path = db_path + ".bak"
 
-if not os.path.exists(backup_path):
-    raise SystemExit(f"Khong tim thay backup {backup_path} - khong co gi de restore")
+def test_idle_when_all_active_connections_are_free_and_not_recent(db_file):
+    write_db(db_file, make_connections())
 
-shutil.copy2(backup_path, db_path)
-print("Da restore db.json ve trang thai goc")
-
-os.remove(backup_path)
-print("Da xoa file backup")
+    assert sidecar_app._compute_status() == {
+        "state": "idle",
+        "detail": "San sang - 23/23 connections kha dung",
+    }

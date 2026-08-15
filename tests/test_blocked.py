@@ -1,34 +1,18 @@
-"""Lock 20/23 connections de test state 'blocked'. Tu tao backup truoc khi sua."""
-import json
-import os
-import shutil
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
-db_path = os.path.join(os.environ.get("APPDATA", ""), "9router", "db.json")
-backup_path = db_path + ".bak"
+from sidecar import app as sidecar_app
+from tests.helpers import make_connections, write_db
 
-# Tao backup TRUOC khi sua (chi tao neu chua co, tranh de backup bi ghi de
-# boi trang thai da bi lock tu lan test truoc)
-if not os.path.exists(backup_path):
-    shutil.copy2(db_path, backup_path)
-    print(f"Da tao backup: {backup_path}")
-else:
-    print(f"Backup da ton tai, giu nguyen: {backup_path}")
 
-with open(db_path, "r", encoding="utf-8") as f:
-    db = json.load(f)
+def test_blocked_when_all_active_connections_are_locked(db_file):
+    future = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    connections = make_connections()
+    for connection in connections:
+        connection["modelLock___all"] = future
 
-now = datetime.now(timezone.utc)
-future = (now + timedelta(minutes=10)).isoformat()
+    write_db(db_file, connections)
 
-active = [c for c in db["providerConnections"] if c.get("isActive")]
-locked = 0
-for i, c in enumerate(active):
-    if i < 20:
-        c["modelLock___all"] = future
-        locked += 1
-
-with open(db_path, "w", encoding="utf-8") as f:
-    json.dump(db, f, indent=2)
-
-print(f"Da lock {locked}/{len(active)} connections cho test 'blocked'")
+    assert sidecar_app._compute_status() == {
+        "state": "blocked",
+        "detail": "Tat ca 23 connections dang bi chan (rate-limit/cooldown)",
+    }
