@@ -29,7 +29,7 @@ WARNING_LOCKED_RATIO = 0.5
 MODEL_LOCK_PREFIX = "modelLock_"
 
 # -- Cache last-good-state --
-_last_good = {"state": "idle", "detail": "Chua doc duoc du lieu"}
+_last_good = {"state": "offline", "detail": "Chua doc duoc du lieu"}
 
 
 def _now_utc():
@@ -53,7 +53,8 @@ def _is_recent(conn, now):
     dt = _parse_iso(conn.get("lastUsedAt"))
     if not dt:
         return False
-    return (now - dt).total_seconds() <= ACTIVE_WINDOW_SEC
+    age = (now - dt).total_seconds()
+    return 0 <= age <= ACTIVE_WINDOW_SEC
 
 
 def _connection_status(conn, now):
