@@ -268,7 +268,9 @@ def test_empty_provider_connections_returns_idle(db_file, monkeypatch):
     }
 
 
-def test_wrong_provider_connections_type_uses_last_good_via_api(db_file, monkeypatch):
+def test_wrong_provider_connections_type_is_treated_as_no_connections_via_api(
+    db_file, monkeypatch
+):
     db_file.write_text('{"providerConnections": {}}', encoding="utf-8")
     monkeypatch.setattr(sidecar_app, "DB_JSON_PATH", str(db_file))
     monkeypatch.setattr(
@@ -280,7 +282,10 @@ def test_wrong_provider_connections_type_uses_last_good_via_api(db_file, monkeyp
     response = sidecar_app.app.test_client().get("/api/status")
 
     assert response.status_code == 200
-    assert response.get_json() == {"state": "active", "detail": "cached status"}
+    assert response.get_json() == {
+        "state": "idle",
+        "detail": "Khong co connection nao duoc cau hinh",
+    }
 
 
 def test_all_connections_inactive_returns_idle(db_file, monkeypatch):
