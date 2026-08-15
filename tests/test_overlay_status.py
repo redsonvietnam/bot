@@ -35,6 +35,14 @@ def test_fetch_status_raises_on_http_error(monkeypatch):
         overlay._fetch_status()
 
 
+def test_fetch_status_raises_on_connection_error(monkeypatch):
+    error = overlay.requests.ConnectionError("sidecar unavailable")
+    monkeypatch.setattr(overlay.requests, "get", lambda *args, **kwargs: (_ for _ in ()).throw(error))
+
+    with pytest.raises(overlay.requests.RequestException):
+        overlay._fetch_status()
+
+
 def test_fetch_status_raises_on_malformed_json(monkeypatch):
     error = overlay.requests.exceptions.JSONDecodeError("bad json", "{", 0)
     response = FakeResponse(json_error=error)
