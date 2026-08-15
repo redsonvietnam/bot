@@ -107,8 +107,8 @@ def test_unavailable_connection_counts_as_locked_in_aggregate_status(db_file, mo
     monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
 
     assert sidecar_app._compute_status() == {
-        "state": "active",
-        "detail": "Dang hoat dong - 1/2 connections kha dung",
+        "state": "warning",
+        "detail": "1/2 connections dang bi han che",
     }
 
 
