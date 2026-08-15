@@ -93,6 +93,9 @@ def _compute_status():
     with open(DB_JSON_PATH, "r", encoding="utf-8") as f:
         db = json.load(f)
 
+    if not isinstance(db, dict):
+        raise ValueError("db.json root must be an object")
+
     connections = db.get("providerConnections")
     if not connections or not isinstance(connections, list):
         log.warning("providerConnections missing or empty in db.json")
@@ -100,11 +103,12 @@ def _compute_status():
         _last_good = result
         return result
 
+    invalid_connections = [c for c in connections if not isinstance(c, dict)]
+    if invalid_connections:
+        raise ValueError("providerConnections contains non-object entries")
+
     active_conns = [c for c in connections if c.get("isActive")]
     if not active_conns:
-        # Day la user chu dong tat het connection, khong phai bi rate-limit
-        # that -> khong nen to mau do (blocked) giong het truong hop bi chan
-        # that su, de tranh bao dong gia.
         result = {"state": "idle", "detail": "Tat ca connections deu bi tat (chu dong)"}
         _last_good = result
         return result
@@ -115,8 +119,6 @@ def _compute_status():
     locked_count = 0
     partial_count = 0
     any_recent = False
-    # ponytail: chi dem locked/partial/free, khong track per-provider.
-    # Nang cap: group by provider neu can detail chi tiet hon.
 
     missing_expected_fields = False
     missing_field_names = set()
@@ -173,7 +175,7 @@ def _compute_status():
 def api_status():
     try:
         result = _compute_status()
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
         log.warning("Doc db.json loi, tra cache: %s", e)
         result = _last_good
     return jsonify(result)
