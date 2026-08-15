@@ -1,6 +1,9 @@
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
+from overlay.router_bot_overlay import _parse_status_payload
 from sidecar import app as sidecar_app
 from tests.helpers import make_connections, write_db
 
@@ -81,3 +84,22 @@ def test_valid_db_recovers_after_initial_failure(db_file):
 
     assert result["state"] == "idle"
     assert result["detail"] == "San sang - 23/23 connections kha dung"
+
+
+def test_overlay_accepts_known_state_payload():
+    assert _parse_status_payload({"state": "warning", "detail": "12/23"}) == (
+        "warning",
+        "12/23",
+    )
+
+
+@pytest.mark.parametrize("payload", [
+    {"state": "banana", "detail": "bad"},
+    {"state": 123, "detail": "bad"},
+    {"state": "idle", "detail": 123},
+    [],
+    None,
+])
+def test_overlay_rejects_invalid_status_payload(payload):
+    with pytest.raises(ValueError):
+        _parse_status_payload(payload)
