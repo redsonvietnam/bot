@@ -133,6 +133,27 @@ def test_overlay_fetch_accepts_valid_response(monkeypatch):
     assert overlay._fetch_status() == ("idle", "ok")
 
 
+@pytest.mark.parametrize(
+    ("state", "detail"),
+    [
+        ("idle", "idle detail"),
+        ("active", "active detail"),
+        ("warning", "warning detail"),
+        ("blocked", "blocked detail"),
+        ("offline", "offline detail"),
+    ],
+)
+def test_overlay_poll_status_maps_each_valid_state(monkeypatch, polling_bot, state, detail):
+    monkeypatch.setattr(overlay, "_fetch_status", lambda: (state, detail))
+
+    overlay.RouterBot.poll_status(polling_bot)
+
+    assert polling_bot.state == state
+    assert polling_bot.detail == detail
+    assert polling_bot.tooltip == f"{state.upper()} — {detail}"
+    assert polling_bot.updated is True
+
+
 def test_overlay_poll_status_sets_offline_on_network_error(monkeypatch, polling_bot):
     def fail():
         raise overlay.requests.ConnectionError("sidecar unavailable")
@@ -159,15 +180,4 @@ def test_overlay_poll_status_sets_offline_on_invalid_response(monkeypatch, polli
     assert polling_bot.state == "offline"
     assert polling_bot.detail == "Phản hồi status không hợp lệ"
     assert polling_bot.tooltip == "OFFLINE — Phản hồi status không hợp lệ"
-    assert polling_bot.updated is True
-
-
-def test_overlay_poll_status_updates_valid_state(monkeypatch, polling_bot):
-    monkeypatch.setattr(overlay, "_fetch_status", lambda: ("blocked", "all locked"))
-
-    overlay.RouterBot.poll_status(polling_bot)
-
-    assert polling_bot.state == "blocked"
-    assert polling_bot.detail == "all locked"
-    assert polling_bot.tooltip == "BLOCKED — all locked"
     assert polling_bot.updated is True
