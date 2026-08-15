@@ -183,6 +183,75 @@ def test_overlay_poll_status_sets_offline_on_invalid_response(monkeypatch, polli
     assert polling_bot.updated is True
 
 
+def test_overlay_poll_status_recovers_from_sidecar_unavailable(monkeypatch, polling_bot):
+    responses = iter([
+        overlay.requests.ConnectionError("sidecar unavailable"),
+        ("active", "23/23"),
+    ])
+
+    def fetch():
+        result = next(responses)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(overlay, "_fetch_status", fetch)
+
+    overlay.RouterBot.poll_status(polling_bot)
+    assert polling_bot.state == "offline"
+    assert polling_bot.detail == "Không kết nối được 9router"
+    assert polling_bot.tooltip == "OFFLINE — Không kết nối được 9router"
+
+    polling_bot.updated = False
+    overlay.RouterBot.poll_status(polling_bot)
+
+    assert polling_bot.state == "active"
+    assert polling_bot.detail == "23/23"
+    assert polling_bot.tooltip == "ACTIVE — 23/23"
+    assert polling_bot.updated is True
+
+
+def test_overlay_poll_status_recovers_from_invalid_payload(monkeypatch, polling_bot):
+    responses = iter([
+        ValueError("unknown state"),
+        ("idle", "San sang"),
+    ])
+
+    def fetch():
+        result = next(responses)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(overlay, "_fetch_status", fetch)
+
+    overlay.RouterBot.poll_status(polling_bot)
+    assert polling_bot.state == "offline"
+    assert polling_bot.detail == "Phản hồi status không hợp lệ"
+    assert polling_bot.tooltip == "OFFLINE — Phản hồi status không hợp lệ"
+
+    polling_bot.updated = False
+    overlay.RouterBot.poll_status(polling_bot)
+
+    assert polling_bot.state == "idle"
+    assert polling_bot.detail == "San sang"
+    assert polling_bot.tooltip == "IDLE — San sang"
+    assert polling_bot.updated is True
+
+
+def test_overlay_fetch_rejects_malformed_response_data(monkeypatch):
+    response = FakeResponse()
+    monkeypatch.setattr(overlay.requests, "get", lambda *args, **kwargs: response)
+
+    def malformed_json():
+        raise ValueError("malformed JSON")
+
+    response.json = malformed_json
+
+    with pytest.raises(ValueError, match="malformed JSON"):
+        overlay._fetch_status()
+
+
 @pytest.mark.parametrize(
     ("from_state", "to_state", "detail"),
     [
