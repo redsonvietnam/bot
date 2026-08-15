@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from overlay import router_bot_overlay as overlay
@@ -250,3 +252,70 @@ def test_poll_status_valid_state_replaces_stale_offline_state(monkeypatch, polli
 
     polling_bot.poll_status()
     assert (polling_bot.state, polling_bot.detail) == ("warning", "limited")
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    """Provide a headless QApplication for timer lifecycle tests."""
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+    yield app
+    app.processEvents()
+
+
+def _make_headless_bot(monkeypatch, qapp):
+    """Create RouterBot without config I/O, network, or showing a window."""
+    monkeypatch.setattr(overlay.RouterBot, "_setup_window", lambda self: None)
+    monkeypatch.setattr(overlay.RouterBot, "_restore_position", lambda self: None)
+    return overlay.RouterBot()
+
+
+def test_router_bot_creates_one_owned_active_timer_pair(monkeypatch, qapp):
+    monkeypatch.setattr(overlay, "_fetch_status", lambda: ("idle", "ready"))
+    bot = _make_headless_bot(monkeypatch, qapp)
+
+    timers = [child for child in bot.children() if isinstance(child, overlay.QTimer)]
+    assert timers == [bot.anim_timer, bot.poll_timer]
+    assert bot.anim_timer.parent() is bot
+    assert bot.poll_timer.parent() is bot
+    assert bot.anim_timer.isActive()
+    assert bot.poll_timer.isActive()
+    assert bot.anim_timer.interval() == 33
+    assert bot.poll_timer.interval() == overlay.POLL_INTERVAL_MS
+
+    bot.close()
+
+
+def test_close_stops_overlay_timers(monkeypatch, qapp):
+    monkeypatch.setattr(overlay, "_fetch_status", lambda: ("active", "working"))
+    bot = _make_headless_bot(monkeypatch, qapp)
+
+    assert bot.anim_timer.isActive()
+    assert bot.poll_timer.isActive()
+
+    bot.close()
+
+    assert not bot.anim_timer.isActive()
+    assert not bot.poll_timer.isActive()
+
+
+def test_repeated_polling_failure_does_not_replace_timer_resource(monkeypatch, qapp):
+    error = overlay.requests.ConnectionError("sidecar unavailable")
+    monkeypatch.setattr(overlay, "_fetch_status", lambda: (_ for _ in ()).throw(error))
+    bot = _make_headless_bot(monkeypatch, qapp)
+    poll_timer = bot.poll_timer
+    timer_count = len([child for child in bot.children() if isinstance(child, overlay.QTimer)])
+
+    for _ in range(5):
+        bot.poll_status()
+        assert (bot.state, bot.detail) == (
+            "offline",
+            "Không kết nối được 9router",
+        )
+        assert bot.poll_timer is poll_timer
+        assert bot.poll_timer.isActive()
+        assert len([child for child in bot.children() if isinstance(child, overlay.QTimer)]) == timer_count
+
+    bot.close()
