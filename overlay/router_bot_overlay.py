@@ -88,6 +88,15 @@ def _parse_status_payload(data):
     return state, detail
 
 
+def _fetch_status():
+    if requests is None:
+        raise RuntimeError("requests is not installed")
+
+    response = requests.get(STATUS_API_URL, timeout=2)
+    response.raise_for_status()
+    return _parse_status_payload(response.json())
+
+
 class RouterBot(QWidget):
     def __init__(self):
         super().__init__()
@@ -141,13 +150,10 @@ class RouterBot(QWidget):
             self.update()
             return
         try:
-            resp = requests.get(STATUS_API_URL, timeout=2)
-            resp.raise_for_status()
-            data = resp.json()
-            self.state, self.detail = _parse_status_payload(data)
+            self.state, self.detail = _fetch_status()
         except requests.RequestException:
             self.state, self.detail = "offline", "Không kết nối được 9router"
-        except ValueError:
+        except (ValueError, RuntimeError):
             self.state, self.detail = "offline", "Phản hồi status không hợp lệ"
         self.setToolTip(f"{self.state.upper()} — {self.detail}")
         self.update()
