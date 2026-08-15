@@ -246,3 +246,138 @@ def test_mixed_valid_and_invalid_connection_fields_are_safe_in_aggregate(
         "state": "active",
         "detail": "Dang hoat dong - 3/3 connections kha dung",
     }
+
+
+def test_missing_provider_connections_returns_idle(db_file, monkeypatch):
+    db_file.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(sidecar_app, "DB_JSON_PATH", str(db_file))
+
+    assert sidecar_app._compute_status() == {
+        "state": "idle",
+        "detail": "Khong co connection nao duoc cau hinh",
+    }
+
+
+def test_empty_provider_connections_returns_idle(db_file, monkeypatch):
+    write_db(db_file, [])
+    monkeypatch.setattr(sidecar_app, "DB_JSON_PATH", str(db_file))
+
+    assert sidecar_app._compute_status() == {
+        "state": "idle",
+        "detail": "Khong co connection nao duoc cau hinh",
+    }
+
+
+def test_wrong_provider_connections_type_uses_last_good_via_api(db_file, monkeypatch):
+    db_file.write_text('{"providerConnections": {}}', encoding="utf-8")
+    monkeypatch.setattr(sidecar_app, "DB_JSON_PATH", str(db_file))
+    monkeypatch.setattr(
+        sidecar_app,
+        "_last_good",
+        {"state": "active", "detail": "cached status"},
+    )
+
+    response = sidecar_app.app.test_client().get("/api/status")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"state": "active", "detail": "cached status"}
+
+
+def test_all_connections_inactive_returns_idle(db_file, monkeypatch):
+    connections = make_connections(2)
+    for connection in connections:
+        connection["isActive"] = False
+    write_db(db_file, connections)
+    monkeypatch.setattr(sidecar_app, "DB_JSON_PATH", str(db_file))
+
+    assert sidecar_app._compute_status() == {
+        "state": "idle",
+        "detail": "Tat ca connections deu bi tat (chu dong)",
+    }
+
+
+def test_mixed_active_and_inactive_connections_only_active_counted(db_file, monkeypatch):
+    connections = make_connections(3)
+    connections[0]["isActive"] = False
+    connections[1]["lastUsedAt"] = RECENT
+    connections[2]["modelLock_a"] = ACTIVE_LOCK
+    write_db(db_file, connections)
+    monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
+
+    assert sidecar_app._compute_status() == {
+        "state": "warning",
+        "detail": "1/2 connections dang bi han che",
+    }
+
+
+def test_non_object_provider_connection_uses_last_good_via_api(db_file, monkeypatch):
+    db_file.write_text(
+        '{"providerConnections": [{"isActive": true}, "invalid"]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sidecar_app, "DB_JSON_PATH", str(db_file))
+    monkeypatch.setattr(
+        sidecar_app,
+        "_last_good",
+        {"state": "idle", "detail": "cached status"},
+    )
+
+    response = sidecar_app.app.test_client().get("/api/status")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"state": "idle", "detail": "cached status"}
+
+
+def test_single_active_connection_is_active_when_recent(db_file, monkeypatch):
+    write_db(db_file, [make_connection(lastUsedAt=RECENT)])
+    monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
+
+    assert sidecar_app._compute_status() == {
+        "state": "active",
+        "detail": "Dang hoat dong - 1/1 connections kha dung",
+    }
+
+
+def test_single_active_connection_with_no_recent_use_is_idle(db_file, monkeypatch):
+    write_db(db_file, [make_connection(lastUsedAt=STALE)])
+    monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
+
+    assert sidecar_app._compute_status() == {
+        "state": "idle",
+        "detail": "San sang - 1/1 connections kha dung",
+    }
+
+
+def test_zero_restricted_connections_are_idle_without_recent_activity(db_file, monkeypatch):
+    write_db(db_file, make_connections(2))
+    monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
+
+    assert sidecar_app._compute_status() == {
+        "state": "idle",
+        "detail": "San sang - 2/2 connections kha dung",
+    }
+
+
+def test_one_of_two_restricted_connections_is_warning(db_file, monkeypatch):
+    connections = make_connections(2)
+    connections[0]["modelLock_a"] = ACTIVE_LOCK
+    write_db(db_file, connections)
+    monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
+
+    assert sidecar_app._compute_status() == {
+        "state": "warning",
+        "detail": "1/2 connections dang bi han che",
+    }
+
+
+def test_all_connections_restricted_are_blocked(db_file, monkeypatch):
+    connections = make_connections(2)
+    for connection in connections:
+        connection["modelLock_a"] = ACTIVE_LOCK
+    write_db(db_file, connections)
+    monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
+
+    assert sidecar_app._compute_status() == {
+        "state": "blocked",
+        "detail": "Tat ca 2 connections dang bi chan (rate-limit/cooldown)",
+    }
