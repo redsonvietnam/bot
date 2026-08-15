@@ -92,7 +92,7 @@ def test_inactive_connections_are_excluded_from_aggregate_status(db_file, monkey
     }
 
 
-def test_warning_threshold_is_below_boundary_for_one_of_two_restricted(db_file, monkeypatch):
+def test_warning_threshold_at_fifty_percent_is_warning(db_file, monkeypatch):
     connections = make_connections(2)
     connections[0]["modelLock_a"] = ACTIVE_LOCK
     write_db(db_file, connections)
@@ -104,7 +104,7 @@ def test_warning_threshold_is_below_boundary_for_one_of_two_restricted(db_file, 
     }
 
 
-def test_warning_threshold_boundary_is_blocked_when_all_are_locked(db_file, monkeypatch):
+def test_all_locked_is_blocked_at_and_above_warning_threshold(db_file, monkeypatch):
     connections = make_connections(2)
     for connection in connections:
         connection["modelLock_a"] = ACTIVE_LOCK
@@ -130,7 +130,7 @@ def test_warning_threshold_just_below_fifty_percent_stays_active(db_file, monkey
     }
 
 
-def test_warning_threshold_at_fifty_percent_is_warning(db_file, monkeypatch):
+def test_warning_threshold_at_fifty_percent_is_warning_for_four_connections(db_file, monkeypatch):
     connections = make_connections(4)
     connections[0]["modelLock_a"] = ACTIVE_LOCK
     connections[1]["modelLock_a"] = ACTIVE_LOCK
