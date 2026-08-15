@@ -120,6 +120,12 @@ class RouterBot(QWidget):
         self.poll_timer.start(POLL_INTERVAL_MS)
         self.poll_status()  # gọi ngay lần đầu
 
+    def closeEvent(self, event):
+        """Stop owned timers before the overlay is closed."""
+        self.poll_timer.stop()
+        self.anim_timer.stop()
+        super().closeEvent(event)
+
     # ── window setup ──
     def _setup_window(self):
         self.setWindowFlags(
