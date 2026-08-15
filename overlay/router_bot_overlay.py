@@ -47,6 +47,7 @@ DASHBOARD_URL = "http://127.0.0.1:5000/"               # mở khi click vào bot
 POLL_INTERVAL_MS = 4000                                  # tần suất hỏi trạng thái
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".9router_bot", "config.json")
 BOT_SIZE = 72                                             # kích thước widget (px)
+VALID_STATES = {"idle", "active", "warning", "blocked", "offline"}
 
 # Trạng thái mong đợi từ API: {"state": "idle|active|warning|blocked|offline", "detail": "..."}
 STATE_COLORS = {
@@ -70,6 +71,21 @@ def save_config(cfg):
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f)
+
+
+def _parse_status_payload(data):
+    if not isinstance(data, dict):
+        raise ValueError("status response must be an object")
+
+    state = data.get("state")
+    if state not in VALID_STATES:
+        raise ValueError("status response contains an unknown state")
+
+    detail = data.get("detail", "")
+    if not isinstance(detail, str):
+        raise ValueError("status response contains an invalid detail")
+
+    return state, detail
 
 
 class RouterBot(QWidget):
@@ -126,11 +142,13 @@ class RouterBot(QWidget):
             return
         try:
             resp = requests.get(STATUS_API_URL, timeout=2)
+            resp.raise_for_status()
             data = resp.json()
-            self.state = data.get("state", "offline")
-            self.detail = data.get("detail", "")
-        except Exception:
+            self.state, self.detail = _parse_status_payload(data)
+        except requests.RequestException:
             self.state, self.detail = "offline", "Không kết nối được 9router"
+        except ValueError:
+            self.state, self.detail = "offline", "Phản hồi status không hợp lệ"
         self.setToolTip(f"{self.state.upper()} — {self.detail}")
         self.update()
 
