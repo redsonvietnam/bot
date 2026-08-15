@@ -8,6 +8,7 @@ from tests.helpers import make_connections, write_db
 
 NOW = datetime(2026, 8, 15, 12, 0, tzinfo=timezone.utc)
 RECENT = (NOW - timedelta(seconds=10)).isoformat()
+BOUNDARY_RECENT = (NOW - timedelta(seconds=30)).isoformat()
 STALE = (NOW - timedelta(seconds=31)).isoformat()
 FUTURE = (NOW + timedelta(seconds=10)).isoformat()
 ACTIVE_LOCK = (NOW + timedelta(minutes=5)).isoformat()
@@ -73,6 +74,12 @@ def test_stale_last_used_at_is_not_recent_for_free_connection():
     assert sidecar_app._connection_status(connection, NOW) == ("free", False)
 
 
+def test_exact_active_window_boundary_is_recent():
+    connection = make_connection(lastUsedAt=BOUNDARY_RECENT)
+
+    assert sidecar_app._connection_status(connection, NOW) == ("free", True)
+
+
 def test_future_last_used_at_is_not_recent_for_free_connection():
     connection = make_connection(lastUsedAt=FUTURE)
 
@@ -89,6 +96,19 @@ def test_inactive_connections_are_excluded_from_aggregate_status(db_file, monkey
     assert sidecar_app._compute_status() == {
         "state": "active",
         "detail": "Dang hoat dong - 1/1 connections kha dung",
+    }
+
+
+def test_unavailable_connection_counts_as_locked_in_aggregate_status(db_file, monkeypatch):
+    connections = make_connections(2)
+    connections[0]["testStatus"] = "unavailable"
+    connections[1]["lastUsedAt"] = RECENT
+    write_db(db_file, connections)
+    monkeypatch.setattr(sidecar_app, "_now_utc", lambda: NOW)
+
+    assert sidecar_app._compute_status() == {
+        "state": "active",
+        "detail": "Dang hoat dong - 1/2 connections kha dung",
     }
 
 
