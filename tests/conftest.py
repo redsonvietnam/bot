@@ -1,6 +1,7 @@
 import pytest
 
 from sidecar import app as sidecar_app
+from tests.helpers import make_polling_bot
 
 
 @pytest.fixture
@@ -14,3 +15,9 @@ def db_file(tmp_path, monkeypatch):
         {"state": "offline", "detail": "Chua doc duoc du lieu"},
     )
     return path
+
+
+@pytest.fixture
+def polling_bot():
+    """Provide a deterministic non-GUI double for overlay polling tests."""
+    return make_polling_bot()

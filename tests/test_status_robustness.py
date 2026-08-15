@@ -133,61 +133,41 @@ def test_overlay_fetch_accepts_valid_response(monkeypatch):
     assert overlay._fetch_status() == ("idle", "ok")
 
 
-def _make_polling_bot():
-    class PollingBot:
-        state = "active"
-        detail = "previous"
-        tooltip = None
-        updated = False
-
-        def setToolTip(self, value):
-            self.tooltip = value
-
-        def update(self):
-            self.updated = True
-
-    return PollingBot()
-
-
-def test_overlay_poll_status_sets_offline_on_network_error(monkeypatch):
-    bot = _make_polling_bot()
-
+def test_overlay_poll_status_sets_offline_on_network_error(monkeypatch, polling_bot):
     def fail():
         raise overlay.requests.ConnectionError("sidecar unavailable")
 
     monkeypatch.setattr(overlay, "_fetch_status", fail)
 
-    overlay.RouterBot.poll_status(bot)
+    overlay.RouterBot.poll_status(polling_bot)
 
-    assert bot.state == "offline"
-    assert bot.detail == "Không kết nối được 9router"
-    assert bot.tooltip == "OFFLINE — Không kết nối được 9router"
-    assert bot.updated is True
+    assert polling_bot.state == "offline"
+    assert polling_bot.detail == "Không kết nối được 9router"
+    assert polling_bot.tooltip == "OFFLINE — Không kết nối được 9router"
+    assert polling_bot.updated is True
 
 
-def test_overlay_poll_status_sets_offline_on_invalid_response(monkeypatch):
-    bot = _make_polling_bot()
+def test_overlay_poll_status_sets_offline_on_invalid_response(monkeypatch, polling_bot):
     monkeypatch.setattr(
         overlay,
         "_fetch_status",
         lambda: (_ for _ in ()).throw(ValueError("bad payload")),
     )
 
-    overlay.RouterBot.poll_status(bot)
+    overlay.RouterBot.poll_status(polling_bot)
 
-    assert bot.state == "offline"
-    assert bot.detail == "Phản hồi status không hợp lệ"
-    assert bot.tooltip == "OFFLINE — Phản hồi status không hợp lệ"
-    assert bot.updated is True
+    assert polling_bot.state == "offline"
+    assert polling_bot.detail == "Phản hồi status không hợp lệ"
+    assert polling_bot.tooltip == "OFFLINE — Phản hồi status không hợp lệ"
+    assert polling_bot.updated is True
 
 
-def test_overlay_poll_status_updates_valid_state(monkeypatch):
-    bot = _make_polling_bot()
+def test_overlay_poll_status_updates_valid_state(monkeypatch, polling_bot):
     monkeypatch.setattr(overlay, "_fetch_status", lambda: ("blocked", "all locked"))
 
-    overlay.RouterBot.poll_status(bot)
+    overlay.RouterBot.poll_status(polling_bot)
 
-    assert bot.state == "blocked"
-    assert bot.detail == "all locked"
-    assert bot.tooltip == "BLOCKED — all locked"
-    assert bot.updated is True
+    assert polling_bot.state == "blocked"
+    assert polling_bot.detail == "all locked"
+    assert polling_bot.tooltip == "BLOCKED — all locked"
+    assert polling_bot.updated is True
