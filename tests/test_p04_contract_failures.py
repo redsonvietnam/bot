@@ -1,6 +1,8 @@
 import json
+from datetime import datetime, timezone
 
 import pytest
+import requests
 from flask import Response, jsonify
 
 from overlay import router_bot_overlay as overlay
@@ -19,7 +21,7 @@ def test_sidecar_http_500_becomes_overlay_request_failure(
     )
     _wire_sidecar_to_overlay(monkeypatch, sidecar_client)
 
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(requests.HTTPError) as exc_info:
         overlay._fetch_status()
 
     assert exc_info.value.response is not None
@@ -80,9 +82,9 @@ def test_sidecar_failure_then_valid_response_recovers_to_new_state(
     }
     (tmp_path / "db.json").write_text(json.dumps(db), encoding="utf-8")
     monkeypatch.setattr(
-        sidecar_app, "_now_utc", lambda: __import__("datetime").datetime.fromisoformat(
-            "2026-08-16T00:00:10+00:00"
-        )
+        sidecar_app,
+        "_now_utc",
+        lambda: datetime(2026, 8, 16, 0, 0, 10, tzinfo=timezone.utc),
     )
 
     second = overlay._fetch_status()
