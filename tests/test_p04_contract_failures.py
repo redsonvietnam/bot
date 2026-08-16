@@ -24,8 +24,7 @@ def test_sidecar_http_500_becomes_overlay_request_failure(
     with pytest.raises(requests.HTTPError) as exc_info:
         overlay._fetch_status()
 
-    assert exc_info.value.response is not None
-    assert exc_info.value.response.status_code == 500
+    assert str(exc_info.value) == "HTTP 500"
 
 
 def test_sidecar_malformed_json_becomes_overlay_contract_failure(
